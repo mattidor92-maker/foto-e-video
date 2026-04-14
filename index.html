@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FOTOEVENTO</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f7f4ef;
+      color: #2d2a26;
+    }
+    .wrap {
+      max-width: 960px;
+      margin: 0 auto;
+      display: grid;
+      gap: 16px;
+    }
+    .card {
+      background: white;
+      border: 1px solid #ddd2c5;
+      border-radius: 16px;
+      padding: 18px;
+    }
+    h1, h2 {
+      margin: 0 0 12px;
+    }
+    .row {
+      display: grid;
+      gap: 10px;
+    }
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 16px;
+      background: #9b7b5a;
+      color: white;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .secondary {
+      background: white;
+      color: #7e6247;
+      border: 1px solid #d8c8b6;
+    }
+    .status {
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid #eee2d6;
+      background: #faf8f5;
+    }
+    .ok { color: #216c3b; }
+    .err { color: #a12f2f; }
+    .info { color: #6c5a4b; }
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    .item {
+      background: #faf8f5;
+      border: 1px solid #eee2d6;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .item img,
+    .item video,
+    .fallback {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: cover;
+      display: block;
+      background: #efe7dc;
+    }
+    .fallback {
+      display: grid;
+      place-items: center;
+      font-size: 30px;
+    }
+    .meta {
+      padding: 10px;
+      font-size: 12px;
+    }
+    .name {
+      font-weight: 700;
+      margin-bottom: 4px;
+      word-break: break-word;
+    }
+    pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #faf8f5;
+      border: 1px solid #eee2d6;
+      border-radius: 12px;
+      padding: 12px;
+      min-height: 80px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Condividi con noi i tuoi ricordi!</h1>
+    </div>
+
+    <div class="card">
+      <h2>Carica Foto/Video</h2>
+      <div class="row">
+        <input id="media" type="file" accept="image/*,video/*" multiple>
+        <button id="uploadBtn" type="button">Invia contenuti</button>
+        <div id="status" class="status info">Inizializzazione...</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Galleria</h2>
+      <div class="row">
+        <button id="reloadBtn" class="secondary" type="button">Aggiorna</button>
+        <div id="galleryInfo" class="status info">Inizializzazione...</div>
+        <div id="gallery" class="gallery"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Log tecnico</h2>
+      <pre id="log"></pre>
+    </div>
+  </div>
+
+  <script>
+    var SUPABASE_URL = "https://nfwkbcnmegmcbsaolani.supabase.co";
+    var SUPABASE_ANON_KEY = "sb_publishable_crCk7XsqLxoBF-F-oJZoSg_e5amHcIb";
+    var BUCKET_NAME = "FOTOEVENTO";
+
+    var media = document.getElementById("media");
+    var uploadBtn = document.getElementById("uploadBtn");
+    var reloadBtn = document.getElementById("reloadBtn");
+    var statusBox = document.getElementById("status");
+    var galleryInfo = document.getElementById("galleryInfo");
+    var gallery = document.getElementById("gallery");
+    var logBox = document.getElementById("log");
+
+    var supabase = null;
+
+    function log(line) {
+      logBox.textContent += line + "\n";
+      console.log(line);
+    }
+
+    function setStatus(text, cls) {
+      statusBox.className = "status " + (cls || "info");
+      statusBox.textContent = text;
+    }
+
+    function setGalleryInfo(text, cls) {
+      galleryInfo.className = "status " + (cls || "info");
+      galleryInfo.textContent = text;
+    }
+
+    function isImage(name, type) {
+      var n = name || "";
+      var t = type || "";
+      return t.indexOf("image/") === 0 || /\.(jpg|jpeg|png|gif|webp|heic|heif)$/i.test(n);
+    }
+
+    function isVideo(name, type) {
+      var n = name || "";
+      var t = type || "";
+      return t.indexOf("video/") === 0 || /\.(mp4|mov|webm|m4v|3gp|avi)$/i.test(n);
+    }
+
+    function isPlaceholder(name) {
+      return !name || name === ".emptyFolderPlaceholder";
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function loadSupabaseScript() {
+      return new Promise(function (resolve, reject) {
+        if (window.supabase && window.supabase.createClient) {
+          resolve();
+          return;
+        }
+        var script = document.createElement("script");
+        script.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+        script.onload = function () { resolve(); };
+        script.onerror = function () { reject(new Error("Impossibile caricare Supabase dal CDN")); };
+        document.head.appendChild(script);
+      });
+    }
+
+    function createClient() {
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      log("Supabase client creato");
+    }
+
+    function clearGallery() {
+      gallery.innerHTML = "";
+    }
+
+    function appendFallback(box, symbol) {
+      var fb = document.createElement("div");
+      fb.className = "fallback";
+      fb.textContent = symbol || "🖼";
+      box.appendChild(fb);
+    }
+
+    function appendGalleryItem(item) {
+      var box = document.createElement("div");
+      box.className = "item";
+
+      var publicUrl = supabase.storage.from(BUCKET_NAME).getPublicUrl(item.name).data.publicUrl;
+      var mime = item.metadata && item.metadata.mimetype ? item.metadata.mimetype : "";
+
+      if (isVideo(item.name, mime)) {
+        var video = document.createElement("video");
+        video.src = publicUrl;
+        video.controls = true;
+        video.playsInline = true;
+        video.preload = "metadata";
+        box.appendChild(video);
+      } else if (/\.(heic|heif)$/i.test(item.name)) {
+        appendFallback(box, "🖼");
+      } else {
+        var img = document.createElement("img");
+        img.src = publicUrl;
+        img.alt = item.name;
+        img.loading = "lazy";
+        img.onerror = function () {
+          img.remove();
+          appendFallback(box, "🖼");
+        };
+        box.appendChild(img);
+      }
+
+      var meta = document.createElement("div");
+      meta.className = "meta";
+      var createdAt = item.created_at ? new Date(item.created_at).toLocaleString("it-IT") : "Data non disponibile";
+      meta.innerHTML = '<div class="name">' + escapeHtml(item.name) + '</div><div>' + createdAt + '</div>';
+      box.appendChild(meta);
+
+      gallery.appendChild(box);
+    }
+
+    async function loadGallery() {
+      clearGallery();
+      setGalleryInfo("Caricamento galleria...", "info");
+
+      try {
+        var res = await supabase.storage.from(BUCKET_NAME).list("", {
+          limit: 100,
+          offset: 0,
+          sortBy: { column: "created_at", order: "desc" }
+        });
+
+        log("LIST response: " + JSON.stringify(res, null, 2));
+
+        if (res.error) {
+          setGalleryInfo("Errore lettura bucket: " + res.error.message, "err");
+          return;
+        }
+
+        var items = (res.data || []).filter(function (item) {
+          return item && item.name && !isPlaceholder(item.name);
+        });
+
+        if (!items.length) {
+          setGalleryInfo("Nessun file visibile nel bucket.", "info");
+          return;
+        }
+
+        setGalleryInfo("File trovati: " + items.length, "ok");
+        items.forEach(appendGalleryItem);
+      } catch (e) {
+        log("LIST error: " + (e.message || String(e)));
+        setGalleryInfo("Errore generale: " + (e.message || String(e)), "err");
+      }
+    }
+
+    async function uploadFiles() {
+      var files = Array.from(media.files || []);
+      if (!files.length) {
+        setStatus("Seleziona almeno un file.", "err");
+        return;
+      }
+
+      setStatus("Upload in corso...", "info");
+      uploadBtn.disabled = true;
+
+      try {
+        for (var i = 0; i < files.length; i++) {
+          var file = files[i];
+          var safeName = "upload-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + "-" + file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+
+          var res = await supabase.storage.from(BUCKET_NAME).upload(safeName, file, {
+            cacheControl: "3600",
+            upsert: false,
+            contentType: file.type || "application/octet-stream"
+          });
+
+          log("UPLOAD response for " + safeName + ": " + JSON.stringify(res, null, 2));
+
+          if (res.error) {
+            throw new Error(res.error.message);
+          }
+        }
+
+        setStatus("Upload riuscito.", "ok");
+        media.value = "";
+        await loadGallery();
+      } catch (e) {
+        log("UPLOAD error: " + (e.message || String(e)));
+        setStatus("Errore upload: " + (e.message || String(e)), "err");
+      } finally {
+        uploadBtn.disabled = false;
+      }
+    }
+
+    async function init() {
+      try {
+        log("Avvio inizializzazione");
+        await loadSupabaseScript();
+        log("Libreria Supabase caricata");
+        createClient();
+        setStatus("Pronto.", "ok");
+        setGalleryInfo("Pronto.", "info");
+        await loadGallery();
+      } catch (e) {
+        log("INIT error: " + (e.message || String(e)));
+        setStatus("Errore inizializzazione: " + (e.message || String(e)), "err");
+        setGalleryInfo("Errore inizializzazione.", "err");
+      }
+    }
+
+    uploadBtn.addEventListener("click", uploadFiles);
+    reloadBtn.addEventListener("click", loadGallery);
+
+    init();
+  </script>
+</body>
+</html>
