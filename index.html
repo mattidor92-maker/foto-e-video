@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Condividi con noi i tuoi ricordi!</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg: #f6f1ea;
+      --card: rgba(255,255,255,0.92);
+      --text: #2f2a26;
+      --muted: #756b63;
+      --accent: #9b7b5a;
+      --accent-dark: #7f6348;
+      --border: rgba(155,123,90,0.20);
+      --ok: #2f7d4a;
+      --err: #b33a3a;
+      --shadow: 0 18px 44px rgba(50, 35, 20, 0.12);
+      --radius: 24px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(255,255,255,0.85), transparent 35%),
+        linear-gradient(180deg, #efe7dc 0%, var(--bg) 35%, #f8f6f2 100%);
+    }
+
+    .wrap {
+      width: 100%;
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      gap: 18px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      backdrop-filter: blur(12px);
+    }
+
+    .hero {
+      padding: 30px 24px 22px;
+      text-align: center;
+    }
+
+    h1 {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(32px, 6vw, 46px);
+      line-height: 1.08;
+      font-weight: 600;
+    }
+
+    .layout {
+      display: grid;
+      gap: 18px;
+    }
+
+    @media (min-width: 900px) {
+      .layout {
+        grid-template-columns: 420px 1fr;
+        align-items: start;
+      }
+    }
+
+    form {
+      padding: 18px 24px 24px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .dropzone {
+      border: 1.5px dashed rgba(155,123,90,0.35);
+      border-radius: 20px;
+      padding: 18px;
+      background: rgba(255,255,255,0.55);
+    }
+
+    .upload-title {
+      display: block;
+      width: 100%;
+      text-align: center;
+      margin-bottom: 8px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 28px;
+      font-weight: 600;
+    }
+
+    input[type="file"] {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.95);
+      color: var(--text);
+      border-radius: 16px;
+      padding: 14px 16px;
+      font-size: 15px;
+      outline: none;
+    }
+
+    input[type="file"]:focus {
+      border-color: rgba(155,123,90,0.45);
+      box-shadow: 0 0 0 4px rgba(155,123,90,0.08);
+    }
+
+    input[type="file"]::file-selector-button {
+      background: linear-gradient(180deg, var(--accent), var(--accent-dark));
+      color: white;
+      border: none;
+      border-radius: 999px;
+      padding: 12px 18px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-right: 12px;
+      box-shadow: 0 10px 24px rgba(126, 98, 71, 0.28);
+    }
+
+    input[type="file"]::-webkit-file-upload-button {
+      background: linear-gradient(180deg, var(--accent), var(--accent-dark));
+      color: white;
+      border: none;
+      border-radius: 999px;
+      padding: 12px 18px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-right: 12px;
+      -webkit-appearance: none;
+    }
+
+    .preview-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .preview-item {
+      display: grid;
+      grid-template-columns: 88px 1fr;
+      gap: 12px;
+      align-items: center;
+      padding: 10px;
+      border-radius: 18px;
+      border: 1px solid rgba(155,123,90,0.12);
+      background: rgba(255,255,255,0.75);
+    }
+
+    .preview-item img,
+    .preview-item video,
+    .preview-fallback {
+      width: 88px;
+      height: 88px;
+      object-fit: cover;
+      border-radius: 14px;
+      display: block;
+      background: #eee;
+    }
+
+    .preview-fallback {
+      display: grid;
+      place-items: center;
+      font-size: 28px;
+      background: linear-gradient(180deg, rgba(155,123,90,0.18), rgba(126,98,71,0.22));
+    }
+
+    .preview-meta {
+      min-width: 0;
+    }
+
+    .preview-name {
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 4px;
+    }
+
+    .preview-size {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .actions {
+      display: grid;
+      gap: 10px;
+    }
+
+    button {
+      appearance: none;
+      border: none;
+      border-radius: 999px;
+      padding: 15px 18px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      background: linear-gradient(180deg, var(--accent), var(--accent-dark));
+      color: white;
+      box-shadow: 0 10px 24px rgba(126, 98, 71, 0.28);
+      transition: transform 0.16s ease, opacity 0.16s ease;
+    }
+
+    button:hover { transform: translateY(-1px); }
+    button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    .secondary {
+      background: transparent;
+      color: var(--accent-dark);
+      border: 1px solid rgba(155,123,90,0.28);
+      box-shadow: none;
+    }
+
+    .status {
+      border-radius: 16px;
+      padding: 14px 16px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .status.success {
+      background: rgba(47,125,74,0.10);
+      color: var(--ok);
+      border: 1px solid rgba(47,125,74,0.18);
+    }
+
+    .status.error {
+      background: rgba(179,58,58,0.08);
+      color: var(--err);
+      border: 1px solid rgba(179,58,58,0.16);
+    }
+
+    .status.info {
+      background: rgba(155,123,90,0.08);
+      color: var(--text);
+      border: 1px solid rgba(155,123,90,0.16);
+    }
+
+    .progress-wrap {
+      display: none;
+      gap: 8px;
+    }
+
+    .progress-wrap.show { display: grid; }
+
+    .progress-bar {
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(155,123,90,0.12);
+    }
+
+    .progress-bar span {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-dark));
+      transition: width 0.2s ease;
+    }
+
+    .hint {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .section-head {
+      padding: 22px 24px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .section-title {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 28px;
+    }
+
+    .gallery-wrap {
+      padding: 18px 24px 24px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 14px;
+    }
+
+    .gallery-item {
+      border-radius: 22px;
+      overflow: hidden;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(155,123,90,0.12);
+      box-shadow: 0 8px 22px rgba(50, 35, 20, 0.08);
+    }
+
+    .gallery-media,
+    .gallery-video,
+    .gallery-fallback {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: cover;
+      display: block;
+      background: #f1ece4;
+    }
+
+    .gallery-fallback {
+      display: grid;
+      place-items: center;
+      font-size: 28px;
+    }
+
+    .gallery-info {
+      padding: 12px 12px 14px;
+      display: grid;
+      gap: 4px;
+    }
+
+    .gallery-name {
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+
+    .gallery-meta {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .empty-state {
+      padding: 24px;
+      border: 1px dashed rgba(155,123,90,0.28);
+      border-radius: 20px;
+      background: rgba(255,255,255,0.45);
+      color: var(--muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="hero">
+        <h1>Condividi con noi i tuoi ricordi!</h1>
+      </div>
+    </div>
+
+    <div class="layout">
+      <div class="card">
+        <form id="uploadForm">
+          <div class="dropzone">
+            <label for="media" class="upload-title">Carica Foto/Video</label>
+            <input id="media" name="media" type="file" accept="image/*,video/*" capture="environment" multiple />
+          </div>
+
+          <div id="previewList" class="preview-list"></div>
+
+          <div id="progressWrap" class="progress-wrap">
+            <div class="hint" id="progressText">Upload in corso...</div>
+            <div class="progress-bar"><span id="progressBar"></span></div>
+          </div>
+
+          <div id="statusBox"></div>
+
+          <div class="actions">
+            <button id="submitBtn" type="submit">Invia contenuti</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="section-head">
+          <h2 class="section-title">Galleria</h2>
+          <button id="reloadGalleryBtn" class="secondary" type="button">Aggiorna</button>
+        </div>
+        <div class="gallery-wrap">
+          <div id="galleryStatus" class="hint">Caricamento galleria...</div>
+          <div id="galleryGrid" class="gallery-grid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://nfwkbcnmegmcbsaolani.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_crCk7XsqLxoBF-F-oJZoSg_e5amHcIb";
+    const BUCKET_NAME = "FOTOEVENTO";
+    const MAX_FILES = 20;
+    const MAX_FILE_MB = 100;
+    const GALLERY_LIMIT = 100;
+
+    const form = document.getElementById("uploadForm");
+    const fileInput = document.getElementById("media");
+    const previewList = document.getElementById("previewList");
+    const statusBox = document.getElementById("statusBox");
+    const submitBtn = document.getElementById("submitBtn");
+    const progressWrap = document.getElementById("progressWrap");
+    const progressBar = document.getElementById("progressBar");
+    const progressText = document.getElementById("progressText");
+    const galleryGrid = document.getElementById("galleryGrid");
+    const galleryStatus = document.getElementById("galleryStatus");
+    const reloadGalleryBtn = document.getElementById("reloadGalleryBtn");
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    let selectedFiles = [];
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function formatBytes(bytes) {
+      if (bytes < 1024) return bytes + " B";
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+      return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+    }
+
+    function slugify(value) {
+      return (value || "ospite")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "")
+        .slice(0, 30) || "ospite";
+    }
+
+    function isImage(fileOrName, type = "") {
+      const name = typeof fileOrName === "string" ? fileOrName : ((fileOrName && fileOrName.name) || "");
+      const mime = typeof fileOrName === "object" ? (((fileOrName && fileOrName.type) || type) || "") : (type || "");
+      return mime.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|heic|heif)$/i.test(name);
+    }
+
+    function isVideo(fileOrName, type = "") {
+      const name = typeof fileOrName === "string" ? fileOrName : ((fileOrName && fileOrName.name) || "");
+      const mime = typeof fileOrName === "object" ? (((fileOrName && fileOrName.type) || type) || "") : (type || "");
+      return mime.startsWith("video/") || /\.(mp4|mov|webm|m4v|3gp|avi)$/i.test(name);
+    }
+
+    function setStatus(message, type = "info") {
+      statusBox.innerHTML = `<div class="status ${type}">${message}</div>`;
+    }
+
+    function clearStatus() {
+      statusBox.innerHTML = "";
+    }
+
+    function resetForm() {
+      selectedFiles = [];
+      fileInput.value = "";
+      previewList.innerHTML = "";
+      progressWrap.classList.remove("show");
+      progressBar.style.width = "0%";
+      progressText.textContent = "Upload in corso...";
+    }
+
+    function makePreviewNode(file) {
+      if (isImage(file)) {
+        if (/\.(heic|heif)$/i.test(file.name)) {
+          const fallback = document.createElement("div");
+          fallback.className = "preview-fallback";
+          fallback.textContent = "🖼";
+          return fallback;
+        }
+        const img = document.createElement("img");
+        img.alt = file.name;
+        const url = URL.createObjectURL(file);
+        img.src = url;
+        img.onload = () => { try { URL.revokeObjectURL(url); } catch (e) {} };
+        img.onerror = () => {
+          const fb = document.createElement("div");
+          fb.className = "preview-fallback";
+          fb.textContent = "🖼";
+          img.replaceWith(fb);
+        };
+        return img;
+      }
+
+      if (isVideo(file)) {
+        const video = document.createElement("video");
+        const url = URL.createObjectURL(file);
+        video.src = url;
+        video.controls = true;
+        video.muted = true;
+        video.playsInline = true;
+        video.preload = "metadata";
+        video.onloadeddata = () => { try { URL.revokeObjectURL(url); } catch (e) {} };
+        return video;
+      }
+
+      const fallback = document.createElement("div");
+      fallback.className = "preview-fallback";
+      fallback.textContent = "⤴";
+      return fallback;
+    }
+
+    function renderPreview() {
+      previewList.innerHTML = "";
+      selectedFiles.forEach((file) => {
+        const item = document.createElement("div");
+        item.className = "preview-item";
+
+        const media = makePreviewNode(file);
+        const meta = document.createElement("div");
+        meta.className = "preview-meta";
+        meta.innerHTML = `
+          <div class="preview-name">${escapeHtml(file.name)}</div>
+          <div class="preview-size">${formatBytes(file.size)} · ${isVideo(file) ? "Video" : "Foto"}</div>
+        `;
+
+        item.appendChild(media);
+        item.appendChild(meta);
+        previewList.appendChild(item);
+      });
+    }
+
+    function makeGalleryCard(item) {
+      const card = document.createElement("article");
+      card.className = "gallery-item";
+
+      const publicUrl = supabase.storage.from(BUCKET_NAME).getPublicUrl(item.name).data.publicUrl;
+      const isVid = isVideo(item.name, item.metadata && item.metadata.mimetype ? item.metadata.mimetype : "");
+      let mediaHtml = "";
+
+      if (isVid) {
+        mediaHtml = `<video class="gallery-video" controls playsinline preload="metadata" src="${publicUrl}"></video>`;
+      } else if (/\.(heic|heif)$/i.test(item.name)) {
+        mediaHtml = `<div class="gallery-fallback">🖼</div>`;
+      } else {
+        mediaHtml = `<img class="gallery-media" src="${publicUrl}" alt="${escapeHtml(item.name)}" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'gallery-fallback',textContent:'🖼'}))">`;
+      }
+
+      const createdAt = item.created_at
+        ? new Date(item.created_at).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })
+        : "Data non disponibile";
+
+      card.innerHTML = `
+        ${mediaHtml}
+        <div class="gallery-info">
+          <div class="gallery-name">${escapeHtml(item.name)}</div>
+          <div class="gallery-meta">${isVid ? "Video" : "Foto"} · ${createdAt}</div>
+        </div>
+      `;
+      return card;
+    }
+
+    async function loadGallery() {
+      galleryStatus.textContent = "Caricamento galleria...";
+      galleryGrid.innerHTML = "";
+
+      try {
+        const { data, error } = await supabase.storage.from(BUCKET_NAME).list("", {
+          limit: GALLERY_LIMIT,
+          offset: 0,
+          sortBy: { column: "created_at", order: "desc" }
+        });
+
+        if (error) throw error;
+
+        const items = (data || []).filter(item => item && item.name);
+
+        if (!items.length) {
+          galleryStatus.innerHTML = '<div class="empty-state">Nessun contenuto caricato per ora.</div>';
+          return;
+        }
+
+        galleryStatus.textContent = `${items.length} contenuti visibili`;
+        items.forEach((item) => galleryGrid.appendChild(makeGalleryCard(item)));
+      } catch (error) {
+        console.error(error);
+        galleryStatus.textContent = `Impossibile caricare la galleria: ${error.message || "errore sconosciuto"}.`;
+        setStatus(`Errore galleria: ${error.message || "errore sconosciuto"}`, "error");
+      }
+    }
+
+    fileInput.addEventListener("change", (event) => {
+      clearStatus();
+      const files = Array.from(event.target.files || []);
+
+      if (files.length > MAX_FILES) {
+        setStatus(`Puoi caricare al massimo ${MAX_FILES} file per volta.`, "error");
+        fileInput.value = "";
+        selectedFiles = [];
+        previewList.innerHTML = "";
+        return;
+      }
+
+      const oversized = files.find(file => file.size > MAX_FILE_MB * 1024 * 1024);
+      if (oversized) {
+        setStatus(`Il file "${escapeHtml(oversized.name)}" supera il limite di ${MAX_FILE_MB} MB.`, "error");
+        fileInput.value = "";
+        selectedFiles = [];
+        previewList.innerHTML = "";
+        return;
+      }
+
+      selectedFiles = files;
+      renderPreview();
+      setStatus(`${files.length} file selezionati.`, "info");
+    });
+
+    reloadGalleryBtn.addEventListener("click", loadGallery);
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      clearStatus();
+
+      if (!selectedFiles.length) {
+        setStatus("Seleziona almeno una foto o un video prima di inviare.", "error");
+        return false;
+      }
+
+      submitBtn.disabled = true;
+      progressWrap.classList.add("show");
+      progressBar.style.width = "0%";
+
+      let uploaded = 0;
+      const guestSlug = slugify("ospite");
+
+      try {
+        for (const file of selectedFiles) {
+          const extension = (file.name.split(".").pop() || (isVideo(file) ? "mp4" : "jpg")).toLowerCase();
+          const safeName = `${guestSlug}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
+
+          const { error } = await supabase.storage.from(BUCKET_NAME).upload(safeName, file, {
+            cacheControl: "3600",
+            upsert: false,
+            contentType: file.type || (isVideo(file) ? "video/mp4" : "image/jpeg")
+          });
+
+          if (error) throw error;
+
+          uploaded += 1;
+          const percent = Math.round((uploaded / selectedFiles.length) * 100);
+          progressBar.style.width = `${percent}%`;
+          progressText.textContent = `Caricati ${uploaded} di ${selectedFiles.length} file...`;
+        }
+
+        setStatus(`${uploaded === 1 ? "Il file è stato inviato" : `I tuoi ${uploaded} file sono stati inviati`} con successo.`, "success");
+        resetForm();
+        await loadGallery();
+      } catch (error) {
+        console.error(error);
+        setStatus(`Upload non riuscito. ${error.message || "Controlla configurazione e permessi, poi riprova."}`, "error");
+      } finally {
+        submitBtn.disabled = false;
+        progressWrap.classList.remove("show");
+        progressText.textContent = "Upload completato";
+      }
+
+      return false;
+    });
+
+    loadGallery();
+  </script>
+</body>
+</html>
